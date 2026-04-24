@@ -51,3 +51,34 @@ Initial class configuration:
 ## Installation
 
 This project uses `uv` for Python environment and dependency management.
+
+
+## Local smoke training
+
+The local smoke training workflow verifies that the dataset, YOLOv12 model initialization, training loop, validation, and weight export work end to end.
+
+Before running the script, place the dataset under:
+
+```text
+data/pothole_detection_v2/
+├── data.yaml
+├── train/
+├── valid/
+└── test/
+```
+
+Run a minimal CPU-based smoke training:
+
+```bash
+uv run python scripts/train_yolov12_smoke.py
+```
+
+The default smoke test uses a small configuration:
+
+model: yolov12n.yaml
+device: cpu
+epochs: 1
+image size: 320
+batch size: 1
+
+On Apple Silicon, MPS is detected, but YOLOv12 training may fail depending on PyTorch and Ultralytics compatibility. CPU smoke training is supported. Full training is recommended on a CUDA-enabled machine.
