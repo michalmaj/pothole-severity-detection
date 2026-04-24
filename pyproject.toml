@@ -1,16 +1,31 @@
 [project]
 name = "pothole-severity-detection"
 version = "0.1.0"
-description = "Add your description here"
+description = "Computer vision project for pothole detection with severity-oriented analysis, training pipelines, and evaluation workflows."
 readme = "README.md"
 authors = [
     { name = "Michał Maj", email = "michalpmaj@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = []
 
-[project.scripts]
-pothole-severity-detection = "pothole_severity_detection:main"
+keywords = [
+    "computer-vision",
+    "object-detection",
+    "pothole-detection",
+    "severity-estimation",
+    "yolo",
+    "mlops"
+]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition"
+]
 
 [build-system]
 requires = ["uv_build>=0.10.12,<0.11.0"]

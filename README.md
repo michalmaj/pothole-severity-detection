@@ -1,0 +1,53 @@
+# Pothole Severity Detection
+
+Computer vision project for pothole detection with severity-oriented analysis, training pipelines, and evaluation workflows.
+
+> Project status: early development.
+
+## Overview
+
+This repository is an educational and portfolio-oriented computer vision project focused on detecting potholes in road images and preparing a workflow for severity-oriented analysis.
+
+The initial dataset contains single-class YOLO annotations for pothole detection. Since the dataset does not provide separate severity labels, severity estimation will be treated as a separate analysis stage rather than a direct object detection class at the beginning of the project.
+
+## Dataset
+
+Source: Roboflow Universe  
+Dataset: Pothole Detection Dataset v2  
+Format: YOLO-compatible annotations
+
+| Split | Images |
+|---|---:|
+| Train | 1037 |
+| Validation | 296 |
+| Test | 149 |
+| Total | 1482 |
+
+Initial class configuration:
+
+| Class ID | Class Name |
+|---:|---|
+| 0 | pothole |
+
+## Goals
+
+- Prepare a clean and reproducible computer vision project structure.
+- Train an object detection model for pothole detection.
+- Evaluate model performance using standard detection metrics.
+- Analyze pothole severity using additional post-processing or future model extensions.
+- Build a GitHub-ready workflow with clear documentation, experiments, and reproducible setup.
+
+## Planned Workflow
+
+1. Project setup and environment management.
+2. Dataset preparation and validation.
+3. Exploratory data analysis.
+4. Baseline object detection training.
+5. Model evaluation.
+6. Inference pipeline.
+7. Severity-oriented analysis.
+8. Optional MLOps improvements.
+
+## Installation
+
+This project uses `uv` for Python environment and dependency management.
