@@ -82,3 +82,34 @@ image size: 320
 batch size: 1
 
 On Apple Silicon, MPS is detected, but YOLOv12 training may fail depending on PyTorch and Ultralytics compatibility. CPU smoke training is supported. Full training is recommended on a CUDA-enabled machine.
+
+## Gradio inference app
+
+The project includes a Gradio application for running pothole detection and severity-oriented visualization on images and short videos.
+
+By default, the app expects model weights at:
+
+```text
+runs/local_smoke/yolov12_smoke/weights/best.pt
+```
+
+Run the app:
+
+```bash
+uv run python scripts/run_gradio_app.py
+```
+
+Open the local URL printed in the terminal, usually:
+
+```text
+http://127.0.0.1:7860/
+```
+
+To use a custom model path:
+
+```bash
+MODEL_PATH=weights/local/yolov12n_cpu_40e_416_b2_best.pt \
+uv run python scripts/run_gradio_app.py
+```
+
+The YOLOv12 model detects potholes. Severity labels are estimated using a post-processing heuristic based on bounding box size and vertical position in the image.
