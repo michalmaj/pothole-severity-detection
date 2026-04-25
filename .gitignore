@@ -43,3 +43,6 @@ checkpoints/
 
 # Inference outputs
 outputs/
+
+# Logs
+logs/
