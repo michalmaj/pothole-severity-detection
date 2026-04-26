@@ -10,7 +10,6 @@ from ultralytics import YOLO
 
 from pothole_severity_detection.inference.severity import estimate_severity
 
-
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 

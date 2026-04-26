@@ -7,7 +7,6 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-
 DEFAULT_MODEL_PATH = Path("runs/local_smoke/yolov12_smoke/weights/best.pt")
 
 

@@ -7,12 +7,11 @@ from pathlib import Path
 import gradio as gr
 
 from pothole_severity_detection.inference.detector import (
+    detect_media,
     is_image_file,
     is_video_file,
-    detect_media,
 )
 from pothole_severity_detection.inference.model_loader import load_model
-
 
 model = None
 
