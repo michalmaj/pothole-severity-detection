@@ -83,6 +83,10 @@ batch size: 1
 
 On Apple Silicon, MPS is detected, but YOLOv12 training may fail depending on PyTorch and Ultralytics compatibility. CPU smoke training is supported. Full training is recommended on a CUDA-enabled machine.
 
+## Results
+
+Selected experiment results are documented in [`docs/experiments.md`](docs/experiments.md).
+
 ## Gradio inference app
 
 The project includes a Gradio application for running pothole detection and severity-oriented visualization on images and short videos.
