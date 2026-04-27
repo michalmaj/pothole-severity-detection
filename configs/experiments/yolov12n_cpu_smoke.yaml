@@ -1,0 +1,30 @@
+experiment:
+  name: yolov12n_cpu_smoke
+  description: Minimal local CPU smoke training run for validating the training pipeline.
+  type: smoke_test
+
+dataset:
+  name: Roboflow Pothole Detection Dataset v2
+  data_yaml: data/pothole_detection_v2/data.yaml
+  classes:
+    - pothole
+
+model:
+  architecture: yolov12n
+  source: yolov12n.yaml
+  initial_weights: null
+
+training:
+  device: cpu
+  epochs: 1
+  image_size: 320
+  batch_size: 1
+  workers: 0
+
+outputs:
+  project: runs/local_smoke
+  name: yolov12_smoke
+
+notes:
+  - This run is not intended to produce a high-quality model.
+  - It validates that YOLOv12 can read the dataset, start training, validate, and export weights.
