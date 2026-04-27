@@ -1,0 +1,45 @@
+experiment:
+  name: yolov12n_cpu_100e_416_b2
+  description: Extended local CPU baseline obtained by continuing training from the 40-epoch baseline.
+  type: extended_baseline
+
+dataset:
+  name: Roboflow Pothole Detection Dataset v2
+  data_yaml: data/pothole_detection_v2/data.yaml
+  classes:
+    - pothole
+
+model:
+  architecture: yolov12n
+  source: weights/local/yolov12n_cpu_40e_416_b2_best.pt
+  initial_weights: weights/local/yolov12n_cpu_40e_416_b2_best.pt
+  output_weights: weights/local/yolov12n_cpu_100e_416_b2_best.pt
+
+training:
+  device: cpu
+  additional_epochs: 60
+  total_effective_epochs: 100
+  image_size: 416
+  batch_size: 2
+  workers: 0
+
+evaluation:
+  split: test
+  image_size: 416
+  batch_size: 2
+  device: cpu
+  metrics:
+    precision: 0.818
+    recall: 0.723
+    map50: 0.779
+    map50_95: 0.445
+
+outputs:
+  training_project: runs/local_smoke
+  training_name: yolov12_smoke
+  evaluation_dir: outputs/evaluation/yolov12n_cpu_100e_416_b2_test
+
+notes:
+  - This model improved both detection confidence and localization quality compared to the 40-epoch baseline.
+  - Model weights are stored locally and are not committed to Git.
+  - Full training is still recommended on a CUDA-enabled machine for larger experiments.
