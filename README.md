@@ -50,6 +50,10 @@ Initial class configuration:
 |---:|---|
 | 0 | pothole |
 
+## Demo preview
+
+![Pothole detection demo](docs/assets/prediction_example.jpg)
+
 ## Severity heuristic
 
 The current severity label is computed after detection. It combines:
