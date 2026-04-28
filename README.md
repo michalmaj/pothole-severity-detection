@@ -117,3 +117,39 @@ uv run python scripts/run_gradio_app.py
 ```
 
 The YOLOv12 model detects potholes. Severity labels are estimated using a post-processing heuristic based on bounding box size and vertical position in the image.
+
+## Config-driven workflow
+
+Experiment settings are stored in YAML files under:
+
+```text
+configs/experiments/
+```
+
+Inspect a config:
+
+```bash
+uv run python scripts/inspect_experiment_config.py \
+  --config configs/experiments/yolov12n_cpu_100e_416_b2.yaml
+  ```
+
+  Train from config:
+
+  ```bash
+  uv run python scripts/train_yolov12.py \
+  --config configs/experiments/yolov12n_cpu_smoke.yaml
+  ```
+
+  Evaluate from config:
+
+  ```bash
+  uv run python scripts/evaluate_yolov12.py \
+  --config configs/experiments/yolov12n_cpu_100e_416_b2.yaml
+  ```
+
+  Predict from config:
+
+  ```bash
+  uv run python scripts/predict_yolov12.py \
+  --config configs/experiments/yolov12n_cpu_100e_416_b2.yaml
+  ```
