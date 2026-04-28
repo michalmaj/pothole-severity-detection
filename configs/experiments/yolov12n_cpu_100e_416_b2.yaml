@@ -34,6 +34,12 @@ evaluation:
     map50: 0.779
     map50_95: 0.445
 
+prediction:
+  source: data/pothole_detection_v2/test/images
+  output_dir: outputs/predictions/yolov12n_cpu_100e_416_b2_test
+  confidence: 0.25
+  recursive: false
+
 outputs:
   training_project: runs/local_smoke
   training_name: yolov12_smoke
