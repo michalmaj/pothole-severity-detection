@@ -1,7 +1,7 @@
 [project]
 name = "pothole-severity-detection"
 version = "0.1.0"
-description = "Computer vision project for pothole detection with severity-oriented analysis, training pipelines, and evaluation workflows."
+description = "Applied computer vision case study for pothole detection with a transparent severity heuristic, YOLOv12 training, evaluation, inference, and reporting workflows."
 readme = "README.md"
 authors = [
     { name = "Michał Maj", email = "michalpmaj@gmail.com" }
@@ -24,15 +24,16 @@ dependencies = [
 
 keywords = [
     "computer-vision",
+    "applied-computer-vision",
     "object-detection",
     "pothole-detection",
-    "severity-estimation",
-    "yolo",
-    "mlops"
+    "severity-heuristic",
+    "reproducible-ml-workflow",
+    "yolov12"
 ]
 
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3.11",
