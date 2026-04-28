@@ -153,3 +153,21 @@ uv run python scripts/inspect_experiment_config.py \
   uv run python scripts/predict_yolov12.py \
   --config configs/experiments/yolov12n_cpu_100e_416_b2.yaml
   ```
+
+  ## Prediction report
+
+Create a lightweight prediction report from an experiment config:
+
+```bash
+uv run python scripts/create_prediction_report.py \
+  --config configs/experiments/yolov12n_cpu_100e_416_b2.yaml \
+  --max-samples 20
+  ```
+
+  The report is saved locally under:
+
+  ```text
+  outputs/reports/
+  ```
+
+  
