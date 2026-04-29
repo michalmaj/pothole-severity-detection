@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -112,6 +113,63 @@ def get_training_epochs(training_config: dict[str, Any]) -> int:
     return int(epochs)
 
 
+def get_optional_training_overrides(
+    training_config: dict[str, Any],
+) -> dict[str, float | int | str]:
+    """Collect optional Ultralytics training arguments from config."""
+    float_keys = [
+        "scale",
+        "mosaic",
+        "mixup",
+        "copy_paste",
+        "hsv_h",
+        "hsv_s",
+        "hsv_v",
+        "degrees",
+        "translate",
+        "shear",
+        "perspective",
+        "fliplr",
+        "flipud",
+    ]
+    int_keys = ["close_mosaic"]
+    str_keys = ["optimizer"]
+
+    overrides: dict[str, float | int | str] = {}
+
+    for key in float_keys:
+        if key in training_config and training_config[key] is not None:
+            overrides[key] = float(training_config[key])
+
+    for key in int_keys:
+        if key in training_config and training_config[key] is not None:
+            overrides[key] = int(training_config[key])
+
+    for key in str_keys:
+        if key in training_config and training_config[key] is not None:
+            overrides[key] = str(training_config[key])
+
+    return overrides
+
+
+def copy_best_weights(
+    training_project: str,
+    training_name: str,
+    destination: str | Path,
+) -> None:
+    """Copy the best training weights to a configured local destination."""
+    source_path = Path(training_project) / training_name / "weights" / "best.pt"
+    destination_path = Path(destination).expanduser()
+
+    if not source_path.exists():
+        raise FileNotFoundError(f"Best weights not found after training: {source_path}")
+
+    destination_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, destination_path)
+
+    print(f"Best weights copied to: {destination_path}")
+
+
 def main() -> None:
     """Train YOLOv12 using settings from a YAML config file."""
     args = parse_args()
@@ -139,9 +197,13 @@ def main() -> None:
     workers = int(training_config.get("workers", 0))
     amp = bool(training_config.get("amp", False))
 
+    training_overrides = get_optional_training_overrides(training_config)
+
     training_project = str(outputs_config.get("training_project", "runs/train"))
     training_name = str(outputs_config.get("training_name", experiment_name))
     exist_ok = bool(outputs_config.get("exist_ok", True))
+
+    output_weights = model_config.get("output_weights")
 
     print("YOLOv12 training configuration")
     print()
@@ -157,6 +219,16 @@ def main() -> None:
     print(f"AMP: {amp}")
     print(f"Output project: {training_project}")
     print(f"Output name: {training_name}")
+
+    if training_overrides:
+        print()
+        print("Additional training overrides:")
+        for key, value in training_overrides.items():
+            print(f"  {key}: {value}")
+
+    if output_weights:
+        print()
+        print(f"Configured output weights: {output_weights}")
 
     if args.dry_run:
         print()
@@ -176,7 +248,15 @@ def main() -> None:
         project=training_project,
         name=training_name,
         exist_ok=exist_ok,
+        **training_overrides,
     )
+
+    if output_weights:
+        copy_best_weights(
+            training_project=training_project,
+            training_name=training_name,
+            destination=output_weights,
+        )
 
 
 if __name__ == "__main__":
