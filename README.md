@@ -73,12 +73,25 @@ It is not a substitute for a validated severity model, because the dataset does 
 - Add a transparent severity heuristic for visual prioritization.
 - Package the project as a small applied-CV prototype with tests, configs, and documentation.
 
+## Repository structure
+
+```text
+pothole-severity-detection/
+├── configs/        # Experiment configuration files
+├── docs/           # Assets and experiment notes
+├── scripts/        # Training, evaluation, prediction, reports, diagnostics
+├── src/            # Python package code
+├── tests/          # Lightweight CI-friendly tests
+├── Makefile        # Workflow shortcuts
+├── pyproject.toml
+└── README.md
+```
 ## Installation
 
 This project uses `uv` for Python environment and dependency management.
 
 ```bash
-uv sync
+uv sync --dev
 ```
 
 Run Python inside the project environment:
@@ -233,63 +246,57 @@ Generated error analysis outputs are saved locally under:
 outputs/error_analysis/
 ```
 
-## Development checks
-
-Run tests:
-
-```bash
-uv run pytest
-```
-
-Run Ruff linting:
-
-```bash
-uv run ruff check .
-```
-
-Check formatting:
-
-```bash
-uv run ruff format --check .
-```
-
 ## Makefile shortcuts
 
-Common workflows are available through `make` commands.
+Common workflows are available through make commands.
 
 Run all local quality checks:
-
 ```bash
 make check
 ```
-
 Inspect the default experiment config:
-
 ```bash
 make inspect
 ```
-
-Run a dry training config validation:
-
+Validate the training configuration without starting training:
 ```bash
 make train-dry
 ```
-
 Run evaluation from the default experiment config:
-
 ```bash
 make evaluate
 ```
-
 Run prediction from the default experiment config:
-
 ```bash
 make predict
 ```
+Create a prediction report:
+```bash
+make report
+```
+Run error analysis on a small sample:
+```bash
+make errors-sample
+```
 Launch the Gradio app:
-
 ```bash
 make app
 ```
-
 The default make train target uses the smoke training configuration to avoid accidentally starting a long training run. Longer experiments should be launched explicitly by overriding TRAIN_CONFIG.
+
+Example:
+```bash
+make train TRAIN_CONFIG=configs/experiments/yolov12n_cpu_100e_416_b2.yaml
+```
+## Development checks
+
+The preferred local quality check is:
+```bash
+make check
+```
+Equivalent manual commands:
+```bash
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+```
