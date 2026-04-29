@@ -252,3 +252,44 @@ Check formatting:
 ```bash
 uv run ruff format --check .
 ```
+
+## Makefile shortcuts
+
+Common workflows are available through `make` commands.
+
+Run all local quality checks:
+
+```bash
+make check
+```
+
+Inspect the default experiment config:
+
+```bash
+make inspect
+```
+
+Run a dry training config validation:
+
+```bash
+make train-dry
+```
+
+Run evaluation from the default experiment config:
+
+```bash
+make evaluate
+```
+
+Run prediction from the default experiment config:
+
+```bash
+make predict
+```
+Launch the Gradio app:
+
+```bash
+make app
+```
+
+The default make train target uses the smoke training configuration to avoid accidentally starting a long training run. Longer experiments should be launched explicitly by overriding TRAIN_CONFIG.
