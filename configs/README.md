@@ -13,6 +13,7 @@ configs/
 └── experiments/
     ├── yolov12n_cpu_smoke.yaml
     ├── yolov12n_cpu_40e_416_b2.yaml
-    └── yolov12n_cpu_100e_416_b2.yaml
+    ├── yolov12n_cpu_100e_416_b2.yaml
+    └── yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug.yaml
 ```
 Generated outputs, model weights, datasets, and logs are not committed to Git.

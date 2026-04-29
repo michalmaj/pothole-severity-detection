@@ -1,0 +1,50 @@
+experiment:
+  name: yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug
+  description: Continued local CPU fine-tuning from the 100-epoch baseline using gentler augmentation settings.
+  type: augmentation_ablation
+
+dataset:
+  name: Roboflow Pothole Detection Dataset v2
+  data_yaml: data/pothole_detection_v2/data.yaml
+  classes:
+    - pothole
+
+model:
+  architecture: yolov12n
+  source: weights/local/yolov12n_cpu_100e_416_b2_best.pt
+  initial_weights: weights/local/yolov12n_cpu_100e_416_b2_best.pt
+  output_weights: weights/local/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_best.pt
+
+training:
+  device: cpu
+  additional_epochs: 60
+  image_size: 416
+  batch_size: 2
+  workers: 0
+  amp: false
+  scale: 0.25
+  mosaic: 0.2
+  mixup: 0.0
+  copy_paste: 0.0
+
+evaluation:
+  split: test
+  image_size: 416
+  batch_size: 2
+  device: cpu
+
+prediction:
+  source: data/pothole_detection_v2/test/images
+  output_dir: outputs/predictions/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test
+  confidence: 0.25
+  recursive: false
+
+outputs:
+  training_project: runs/experiments
+  training_name: yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug
+  evaluation_dir: outputs/evaluation/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test
+
+notes:
+  - This experiment tests whether gentler augmentations improve localization and recall after the 100-epoch CPU baseline.
+  - Mosaic and copy-paste are reduced because pothole appearance depends strongly on road texture and perspective context.
+  - Model weights are stored locally and are not committed to Git.
