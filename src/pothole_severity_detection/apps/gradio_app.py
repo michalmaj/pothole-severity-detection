@@ -8,7 +8,7 @@ from typing import Any
 import gradio as gr
 
 from pothole_severity_detection.inference.detector import (
-    detect_media,
+    detect_media_with_summary,
     is_image_file,
     is_video_file,
 )
@@ -49,6 +49,40 @@ default weights are missing, run training first or provide a custom `MODEL_PATH`
 """
 
 
+def format_detection_summary(summary: dict[str, Any]) -> str:
+    """Format detection summary as Markdown."""
+    severity_counts = summary.get("severity_counts", {})
+    media_type = summary.get("media_type", "unknown")
+    total_detections = int(summary.get("total_detections", 0))
+    average_confidence = float(summary.get("average_confidence", 0.0))
+    max_confidence = float(summary.get("max_confidence", 0.0))
+
+    frames_processed = summary.get("frames_processed")
+    frame_note = ""
+    if media_type == "video" and frames_processed is not None:
+        frame_note = (
+            "\n\nFor videos, detections are counted per processed frame, "
+            "not as unique physical potholes across time."
+        )
+
+    return f"""
+### Detection summary
+
+| Metric | Value |
+|---|---:|
+| Media type | {media_type} |
+| Total detections | {total_detections} |
+| Low severity | {severity_counts.get("Low", 0)} |
+| Medium severity | {severity_counts.get("Medium", 0)} |
+| High severity | {severity_counts.get("High", 0)} |
+| Average confidence | {average_confidence:.3f} |
+| Maximum confidence | {max_confidence:.3f} |
+{f"| Frames processed | {frames_processed} |" if frames_processed is not None else ""}
+
+{frame_note}
+"""
+
+
 def process_media(input_path: str | None, confidence: float):
     """Process uploaded image or video and return Gradio outputs."""
     if input_path is None:
@@ -56,13 +90,14 @@ def process_media(input_path: str | None, confidence: float):
             gr.update(value=None, visible=False),
             gr.update(value=None, visible=False),
             None,
+            "",
             "Upload an image or video file.",
         )
 
     path = Path(input_path)
 
     try:
-        output_path = detect_media(
+        result = detect_media_with_summary(
             model=get_model(),
             input_path=path,
             confidence=confidence,
@@ -72,14 +107,19 @@ def process_media(input_path: str | None, confidence: float):
             gr.update(value=None, visible=False),
             gr.update(value=None, visible=False),
             None,
+            "",
             f"Error: {error}",
         )
+
+    output_path = Path(result["output_path"])
+    summary_markdown = format_detection_summary(result["summary"])
 
     if is_video_file(output_path):
         return (
             gr.update(value=None, visible=False),
             gr.update(value=str(output_path), visible=True),
             str(output_path),
+            summary_markdown,
             "Video processed successfully.",
         )
 
@@ -88,6 +128,7 @@ def process_media(input_path: str | None, confidence: float):
             gr.update(value=str(output_path), visible=True),
             gr.update(value=None, visible=False),
             str(output_path),
+            summary_markdown,
             "Image processed successfully.",
         )
 
@@ -95,6 +136,7 @@ def process_media(input_path: str | None, confidence: float):
         gr.update(value=None, visible=False),
         gr.update(value=None, visible=False),
         None,
+        "",
         "Unsupported output format.",
     )
 
@@ -154,13 +196,20 @@ def build_app() -> gr.Blocks:
                             interactive=False,
                             visible=False,
                         )
+                        detection_summary = gr.Markdown()
                         output_file = gr.File(label="Download output")
                         status = gr.Textbox(label="Status", interactive=False)
 
                 run_button.click(
                     fn=process_media,
                     inputs=[input_file, confidence],
-                    outputs=[output_image, output_video, output_file, status],
+                    outputs=[
+                        output_image,
+                        output_video,
+                        output_file,
+                        detection_summary,
+                        status,
+                    ],
                 )
 
             with gr.Tab("Model & Results"):
@@ -199,6 +248,14 @@ def build_app() -> gr.Blocks:
                     The heuristic is intentionally simple and interpretable. It
                     should be read as a visual prioritization layer, not as a
                     validated road-damage severity model.
+
+                    Severity colors in the demo:
+
+                    | Severity | Color |
+                    |---|---|
+                    | Low | Green |
+                    | Medium | Orange |
+                    | High | Red |
                     """
                 )
 
