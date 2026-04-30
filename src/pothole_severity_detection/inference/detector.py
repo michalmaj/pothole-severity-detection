@@ -128,8 +128,7 @@ def extract_boxes_and_confidences(result: Any) -> tuple[list[Box], list[float]]:
         for box in result.boxes.xyxy.cpu().numpy().tolist()
     ]
     confidences = [
-        float(confidence)
-        for confidence in result.boxes.conf.cpu().numpy().tolist()
+        float(confidence) for confidence in result.boxes.conf.cpu().numpy().tolist()
     ]
 
     return boxes, confidences
