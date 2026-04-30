@@ -188,7 +188,7 @@ The project includes a Gradio application for running pothole detection and seve
 By default, the app expects model weights at:
 
 ```text
-runs/local_smoke/yolov12_smoke/weights/best.pt
+weights/local/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_best.pt
 ```
 
 Run the app:
