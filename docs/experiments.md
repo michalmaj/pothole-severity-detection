@@ -109,3 +109,47 @@ Increasing the evaluation image size to 512 slightly improved recall for the 100
 Continuing training from the 100-epoch baseline for 40 additional epochs with image size 512 and batch size 1 did not improve the final test-set metrics. The 100-epoch model trained and evaluated at image size 416 remains the best local CPU baseline.
 
 This result is kept as an ablation-style experiment because it helps document that larger input resolution did not improve this specific local training setup.
+
+## YOLOv12n local CPU baseline — gentle augmentation fine-tuning
+
+Date: 2026-04-30  
+Environment: Apple M4 Pro, CPU  
+Base model: `weights/local/yolov12n_cpu_100e_416_b2_best.pt`  
+Fine-tuned model: `weights/local/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_best.pt`  
+Dataset: Roboflow Pothole Detection Dataset v2  
+Split: test  
+Image size: 416  
+Batch size: 2  
+Device: CPU  
+
+### Training setup
+
+This experiment continued training from the previous 100-epoch local CPU baseline using gentler augmentation settings:
+
+| Parameter | Value |
+|---|---:|
+| Additional epochs | 60 |
+| Image size | 416 |
+| Batch size | 2 |
+| Scale | 0.25 |
+| Mosaic | 0.2 |
+| MixUp | 0.0 |
+| Copy-paste | 0.0 |
+
+### Test results
+
+| Metric | Previous 100e baseline | Gentle augmentation fine-tuning |
+|---|---:|---:|
+| Precision | 0.818 | 0.805 |
+| Recall | 0.723 | 0.778 |
+| mAP50 | 0.779 | 0.836 |
+| mAP75 | — | 0.518 |
+| mAP50-95 | 0.445 | 0.490 |
+
+### Notes
+
+Gentle augmentation fine-tuning improved recall, mAP50, and mAP50-95 compared with the previous 100-epoch local CPU baseline. Precision decreased slightly, but the overall detection quality improved, especially in localization-oriented metrics.
+
+The result suggests that reducing aggressive augmentations such as mosaic and copy-paste can better preserve road texture and perspective context for this dataset.
+
+This is currently the best local CPU baseline documented in the project.
