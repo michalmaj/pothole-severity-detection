@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any
 
-import yaml
-
+from pothole_severity_detection.experiment_config import (
+    ExperimentConfig,
+    load_experiment_config,
+)
 from pothole_severity_detection.inference.detector import (
     detect_media,
     is_image_file,
@@ -78,35 +79,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_yaml_config(config_path: Path | None) -> dict[str, Any]:
-    """Load a YAML configuration file if provided."""
-    if config_path is None:
-        return {}
-
-    resolved_config_path = config_path.expanduser().resolve()
-
-    if not resolved_config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {resolved_config_path}")
-
-    with resolved_config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def get_section(config: dict[str, Any], section_name: str) -> dict[str, Any]:
-    """Read a configuration section safely."""
-    section = config.get(section_name, {})
-
-    if not isinstance(section, dict):
-        raise ValueError(f"Invalid configuration section: {section_name}")
-
-    return section
-
-
 def resolve_existing_path(path_value: str | Path, label: str) -> Path:
     """Resolve and validate an existing local path."""
     path = Path(path_value).expanduser().resolve()
@@ -117,18 +89,15 @@ def resolve_existing_path(path_value: str | Path, label: str) -> Path:
     return path
 
 
-def get_model_path(args: argparse.Namespace, model_config: dict[str, Any]) -> Path:
-    """Resolve model weights path from CLI arguments or experiment config."""
-    model_value = (
-        args.model
-        or model_config.get("output_weights")
-        or model_config.get("weights")
-        or model_config.get("source")
-    )
+def get_model_path(args: argparse.Namespace, config: ExperimentConfig | None) -> Path:
+    """Resolve model weights from CLI arguments or the experiment config."""
+    model_value = args.model
+    if model_value is None and config is not None:
+        model_value = config.model.output_weights or config.model.source
 
     if model_value is None:
         raise ValueError(
-            "Model weights must be provided through --model or config model section."
+            "Model weights must be provided through --model or a config model section."
         )
 
     model_path = resolve_existing_path(model_value, "Model weights")
@@ -142,34 +111,30 @@ def get_model_path(args: argparse.Namespace, model_config: dict[str, Any]) -> Pa
     return model_path
 
 
-def get_source_path(
-    args: argparse.Namespace,
-    prediction_config: dict[str, Any],
-) -> Path:
-    """Resolve prediction source path from CLI arguments or config."""
-    source_value = args.source or prediction_config.get("source")
+def get_source_path(args: argparse.Namespace, config: ExperimentConfig | None) -> Path:
+    """Resolve the prediction source from CLI arguments or the config."""
+    source_value = args.source
+    if source_value is None and config is not None and config.prediction is not None:
+        source_value = config.prediction.source
 
     if source_value is None:
         raise ValueError(
-            "Prediction source must be provided through --source or config "
-            "prediction.source."
+            "Prediction source must be provided through --source or "
+            "config prediction.source."
         )
 
     return resolve_existing_path(source_value, "Prediction source")
 
 
-def get_output_dir(
-    args: argparse.Namespace,
-    prediction_config: dict[str, Any],
-) -> Path:
-    """Resolve output directory from CLI arguments or config."""
-    output_value = (
-        args.output_dir
-        or prediction_config.get("output_dir")
-        or Path("outputs/predictions")
-    )
+def get_output_dir(args: argparse.Namespace, config: ExperimentConfig | None) -> Path:
+    """Resolve the output directory from CLI arguments or the config."""
+    if args.output_dir is not None:
+        return Path(args.output_dir).expanduser().resolve()
 
-    return Path(output_value).expanduser().resolve()
+    if config is not None and config.prediction is not None:
+        return Path(config.prediction.output_dir).expanduser().resolve()
+
+    return Path("outputs/predictions").expanduser().resolve()
 
 
 def is_supported_media(path: Path) -> bool:
@@ -201,23 +166,23 @@ def main() -> None:
     """Run prediction workflow."""
     args = parse_args()
 
-    config_path = args.config.expanduser().resolve() if args.config else None
-    config = load_yaml_config(config_path)
+    config = load_experiment_config(args.config) if args.config is not None else None
 
-    model_config = get_section(config, "model")
-    prediction_config = get_section(config, "prediction")
+    model_path = get_model_path(args=args, config=config)
+    source = get_source_path(args=args, config=config)
+    output_dir = get_output_dir(args=args, config=config)
 
-    model_path = get_model_path(args=args, model_config=model_config)
-    source = get_source_path(args=args, prediction_config=prediction_config)
-    output_dir = get_output_dir(args=args, prediction_config=prediction_config)
+    confidence = args.confidence
+    if confidence is None and config is not None and config.prediction is not None:
+        confidence = config.prediction.confidence
+    if confidence is None:
+        confidence = 0.25
+    confidence = float(confidence)
 
-    confidence = float(
-        args.confidence
-        if args.confidence is not None
-        else prediction_config.get("confidence", 0.25)
-    )
-
-    recursive = bool(args.recursive or prediction_config.get("recursive", False))
+    recursive = args.recursive
+    if not recursive and config is not None and config.prediction is not None:
+        recursive = config.prediction.recursive
+    recursive = bool(recursive)
 
     media_files = collect_media_files(source=source, recursive=recursive)
 
@@ -226,7 +191,7 @@ def main() -> None:
 
     print("YOLOv12 prediction configuration")
     print()
-    print(f"Config: {config_path}")
+    print(f"Config: {config.path if config is not None else None}")
     print(f"Model: {model_path}")
     print(f"Source: {source}")
     print(f"Output directory: {output_dir}")

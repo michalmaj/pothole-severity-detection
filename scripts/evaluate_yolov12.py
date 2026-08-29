@@ -16,20 +16,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import torch
-import yaml
 from ultralytics import YOLO
 
-
-def select_device() -> str:
-    """Select the best available device for evaluation."""
-    if torch.cuda.is_available():
-        return "cuda"
-
-    if torch.backends.mps.is_available():
-        return "mps"
-
-    return "cpu"
+from pothole_severity_detection.experiment_config import (
+    ExperimentConfig,
+    load_experiment_config,
+)
+from pothole_severity_detection.torch_utils import select_device
 
 
 def parse_args() -> argparse.Namespace:
@@ -109,35 +102,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_yaml_config(config_path: Path | None) -> dict[str, Any]:
-    """Load a YAML configuration file if provided."""
-    if config_path is None:
-        return {}
-
-    resolved_config_path = config_path.expanduser().resolve()
-
-    if not resolved_config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {resolved_config_path}")
-
-    with resolved_config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def get_section(config: dict[str, Any], section_name: str) -> dict[str, Any]:
-    """Read a configuration section safely."""
-    section = config.get(section_name, {})
-
-    if not isinstance(section, dict):
-        raise ValueError(f"Invalid configuration section: {section_name}")
-
-    return section
-
-
 def get_metric(source: Any, name: str) -> float | None:
     """Safely read a numeric metric from an object."""
     value = getattr(source, name, None)
@@ -158,21 +122,15 @@ def resolve_existing_path(path_value: str | Path, label: str) -> Path:
     return path
 
 
-def get_model_path(
-    args: argparse.Namespace,
-    model_config: dict[str, Any],
-) -> Path:
-    """Resolve model path from CLI arguments or experiment config."""
-    model_value = (
-        args.model
-        or model_config.get("output_weights")
-        or model_config.get("weights")
-        or model_config.get("source")
-    )
+def get_model_path(args: argparse.Namespace, config: ExperimentConfig | None) -> Path:
+    """Resolve model weights from CLI arguments or the experiment config."""
+    model_value = args.model
+    if model_value is None and config is not None:
+        model_value = config.model.output_weights or config.model.source
 
     if model_value is None:
         raise ValueError(
-            "Model weights must be provided through --model or config model section."
+            "Model weights must be provided through --model or a config model section."
         )
 
     model_path = resolve_existing_path(model_value, "Model weights")
@@ -186,16 +144,15 @@ def get_model_path(
     return model_path
 
 
-def get_data_path(
-    args: argparse.Namespace,
-    dataset_config: dict[str, Any],
-) -> Path:
-    """Resolve dataset YAML path from CLI arguments or experiment config."""
-    data_value = args.data or dataset_config.get("data_yaml")
+def get_data_path(args: argparse.Namespace, config: ExperimentConfig | None) -> Path:
+    """Resolve the dataset YAML from CLI arguments or the experiment config."""
+    data_value = args.data
+    if data_value is None and config is not None:
+        data_value = config.dataset.data_yaml
 
     if data_value is None:
         raise ValueError(
-            "Dataset YAML must be provided through --data or config dataset section."
+            "Dataset YAML must be provided through --data or a config dataset section."
         )
 
     return resolve_existing_path(data_value, "Dataset YAML")
@@ -203,27 +160,26 @@ def get_data_path(
 
 def get_output_settings(
     args: argparse.Namespace,
-    experiment_config: dict[str, Any],
-    outputs_config: dict[str, Any],
+    config: ExperimentConfig | None,
     split: str,
 ) -> tuple[Path, str]:
-    """Resolve evaluation output directory and run name."""
-    experiment_name = str(experiment_config.get("name", "yolov12_evaluation"))
+    """Resolve the evaluation output directory and run name."""
+    experiment_name = "yolov12_evaluation"
+    if config is not None:
+        experiment_name = config.experiment.name
 
     if args.output_dir is not None:
         output_dir = args.output_dir.expanduser().resolve()
         run_name = args.name or f"{experiment_name}_{split}"
         return output_dir, run_name
 
-    evaluation_dir = outputs_config.get("evaluation_dir")
-
+    evaluation_dir = config.outputs.evaluation_dir if config is not None else None
     if evaluation_dir is not None:
-        resolved_evaluation_dir = Path(evaluation_dir).expanduser().resolve()
-        return resolved_evaluation_dir.parent, resolved_evaluation_dir.name
+        resolved = Path(evaluation_dir).expanduser().resolve()
+        return resolved.parent, resolved.name
 
     output_dir = Path("outputs/evaluation").resolve()
     run_name = args.name or f"{experiment_name}_{split}"
-
     return output_dir, run_name
 
 
@@ -239,55 +195,51 @@ def main() -> None:
     """Run YOLOv12 evaluation and save metrics."""
     args = parse_args()
 
-    config_path = args.config.expanduser().resolve() if args.config else None
-    config = load_yaml_config(config_path)
+    config = load_experiment_config(args.config) if args.config is not None else None
 
-    experiment_config = get_section(config, "experiment")
-    dataset_config = get_section(config, "dataset")
-    model_config = get_section(config, "model")
-    training_config = get_section(config, "training")
-    evaluation_config = get_section(config, "evaluation")
-    outputs_config = get_section(config, "outputs")
+    model_path = get_model_path(args=args, config=config)
+    data_path = get_data_path(args=args, config=config)
 
-    model_path = get_model_path(args=args, model_config=model_config)
-    data_path = get_data_path(args=args, dataset_config=dataset_config)
+    split = args.split
+    if split is None and config is not None and config.evaluation is not None:
+        split = config.evaluation.split
+    if split is None:
+        split = "test"
 
-    split = args.split or str(evaluation_config.get("split", "test"))
-
-    device = (
-        args.device
-        or evaluation_config.get("device")
-        or training_config.get("device")
-        or "cpu"
-    )
+    device = args.device
+    if device is None and config is not None and config.evaluation is not None:
+        device = config.evaluation.device
+    if device is None and config is not None:
+        device = config.training.device
+    if device is None:
+        device = "cpu"
     device = select_device() if device == "auto" else str(device)
 
-    image_size = int(
-        args.imgsz
-        or evaluation_config.get("image_size")
-        or training_config.get("image_size")
-        or 416
-    )
+    image_size = args.imgsz
+    if image_size is None and config is not None and config.evaluation is not None:
+        image_size = config.evaluation.image_size
+    if image_size is None and config is not None:
+        image_size = config.training.image_size
+    if image_size is None:
+        image_size = 416
+    image_size = int(image_size)
 
-    batch_size = int(
-        args.batch
-        or evaluation_config.get("batch_size")
-        or training_config.get("batch_size")
-        or 2
-    )
+    batch_size = args.batch
+    if batch_size is None and config is not None and config.evaluation is not None:
+        batch_size = config.evaluation.batch_size
+    if batch_size is None and config is not None:
+        batch_size = config.training.batch_size
+    if batch_size is None:
+        batch_size = 2
+    batch_size = int(batch_size)
 
-    output_dir, run_name = get_output_settings(
-        args=args,
-        experiment_config=experiment_config,
-        outputs_config=outputs_config,
-        split=split,
-    )
+    output_dir, run_name = get_output_settings(args=args, config=config, split=split)
 
     output_path = output_dir / run_name / "metrics.json"
 
     print("YOLOv12 evaluation configuration")
     print()
-    print(f"Config: {config_path}")
+    print(f"Config: {config.path if config is not None else None}")
     print(f"Model: {model_path}")
     print(f"Dataset YAML: {data_path}")
     print(f"Split: {split}")
@@ -322,7 +274,7 @@ def main() -> None:
 
     metrics = {
         "timestamp_utc": datetime.now(UTC).isoformat(),
-        "config_path": str(config_path) if config_path else None,
+        "config_path": str(config.path) if config is not None else None,
         "model_path": str(model_path),
         "data_path": str(data_path),
         "split": split,
