@@ -1,24 +1,20 @@
-"""Inspect an experiment configuration file.
+"""Inspect an experiment configuration file: load, validate, and print it.
 
-This script loads a YAML experiment configuration and prints the most important
-training, evaluation, and output settings. It is a lightweight first step toward
-a config-driven ML workflow.
+This is the canonical check that a YAML file in ``configs/experiments/``
+conforms to the experiment configuration schema.
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
+import sys
 from pathlib import Path
-from typing import Any
 
-import yaml
-
-REQUIRED_TOP_LEVEL_KEYS = {
-    "experiment",
-    "dataset",
-    "model",
-    "training",
-}
+from pothole_severity_detection.experiment_config import (
+    ConfigError,
+    load_experiment_config,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,92 +22,53 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Inspect a YAML experiment configuration file."
     )
-
     parser.add_argument(
         "--config",
         type=Path,
         required=True,
         help="Path to the experiment configuration file.",
     )
-
     return parser.parse_args()
 
 
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-    """Load a YAML configuration file."""
-    if not config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+def print_section(name: str, section: object | None) -> None:
+    """Print one configuration section, or a placeholder when it is absent."""
+    print(f"{name}:")
 
-    with config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
+    if section is None:
+        print("  (not set)")
+        return
 
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def validate_config(config: dict[str, Any]) -> None:
-    """Validate required top-level configuration keys."""
-    missing_keys = REQUIRED_TOP_LEVEL_KEYS - set(config)
-
-    if missing_keys:
-        missing = ", ".join(sorted(missing_keys))
-        raise ValueError(f"Missing required top-level configuration keys: {missing}")
-
-
-def get_nested(
-    config: dict[str, Any], section: str, key: str, default: Any = None
-) -> Any:
-    """Read a nested configuration value safely."""
-    section_data = config.get(section, {})
-
-    if not isinstance(section_data, dict):
-        return default
-
-    return section_data.get(key, default)
+    for field in dataclasses.fields(section):
+        print(f"  {field.name}: {getattr(section, field.name)}")
 
 
 def main() -> None:
     """Load, validate, and print experiment configuration details."""
     args = parse_args()
-    config_path = args.config.resolve()
 
-    config = load_yaml_config(config_path)
-    validate_config(config)
+    try:
+        config = load_experiment_config(args.config)
+    except ConfigError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error
 
-    experiment_name = get_nested(config, "experiment", "name", "unknown")
-    experiment_type = get_nested(config, "experiment", "type", "unknown")
-    dataset_yaml = get_nested(config, "dataset", "data_yaml", "unknown")
-    model_source = get_nested(config, "model", "source", "unknown")
-
-    training = config.get("training", {})
-    evaluation = config.get("evaluation", {})
-    outputs = config.get("outputs", {})
-
-    print("Experiment configuration loaded successfully.")
+    print(f"Config path: {config.path}")
+    print(f"Resolved training name: {config.training_name}")
     print()
-    print(f"Config path: {config_path}")
-    print(f"Experiment name: {experiment_name}")
-    print(f"Experiment type: {experiment_type}")
-    print(f"Dataset YAML: {dataset_yaml}")
-    print(f"Model source: {model_source}")
-    print()
-    print("Training settings:")
-    for key, value in training.items():
-        print(f"  {key}: {value}")
 
-    if evaluation:
-        print()
-        print("Evaluation settings:")
-        for key, value in evaluation.items():
-            print(f"  {key}: {value}")
+    print_section("experiment", config.experiment)
+    print_section("dataset", config.dataset)
+    print_section("model", config.model)
+    print_section("training", config.training)
+    print_section("evaluation", config.evaluation)
+    print_section("prediction", config.prediction)
+    print_section("outputs", config.outputs)
 
-    if outputs:
-        print()
-        print("Output settings:")
-        for key, value in outputs.items():
-            print(f"  {key}: {value}")
+    if config.notes:
+        print("notes:")
+        for note in config.notes:
+            print(f"  - {note}")
 
 
 if __name__ == "__main__":
