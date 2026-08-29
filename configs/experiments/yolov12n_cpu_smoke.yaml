@@ -22,8 +22,8 @@ training:
   workers: 0
 
 outputs:
-  project: runs/local_smoke
-  name: yolov12_smoke
+  training_project: runs/train
+  training_name: yolov12n_cpu_smoke
 
 notes:
   - This run is not intended to produce a high-quality model.

@@ -190,3 +190,16 @@ def test_config_is_immutable(tmp_path: Path) -> None:
     config = load_experiment_config(write_config(tmp_path, MINIMAL))
     with pytest.raises(FrozenInstanceError):
         config.training.image_size = 999
+
+
+REPO_CONFIG_DIR = Path("configs/experiments")
+REPO_CONFIGS = sorted(REPO_CONFIG_DIR.glob("*.yaml"))
+
+
+def test_repo_config_dir_is_populated() -> None:
+    assert REPO_CONFIGS, f"no configs found in {REPO_CONFIG_DIR}"
+
+
+@pytest.mark.parametrize("config_path", REPO_CONFIGS, ids=lambda p: p.name)
+def test_repo_config_loads(config_path: Path) -> None:
+    load_experiment_config(config_path)
