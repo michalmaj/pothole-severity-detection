@@ -211,21 +211,46 @@ def _check_keys(raw: dict[str, Any], allowed: set[str], label: str, path: Path) 
         )
 
 
-def _get(
-    raw: dict[str, Any],
-    key: str,
-    coerce: Callable[[Any, str, Path], Any],
-    label: str,
-    path: Path,
-    *,
-    default: Any,
-    required: bool = False,
-) -> Any:
-    if key not in raw or raw[key] is None:
-        if required:
-            raise ConfigError(f"{path}: {label}: missing required key '{key}'")
-        return default
-    return coerce(raw[key], f"{label}.{key}", path)
+class _Reader:
+    """Read and coerce keys from one config section with consistent errors."""
+
+    def __init__(self, raw: dict[str, Any], label: str, path: Path) -> None:
+        self._raw = raw
+        self._label = label
+        self._path = path
+
+    def check_keys(self, allowed: set[str]) -> None:
+        _check_keys(self._raw, allowed, self._label, self._path)
+
+    def _value(
+        self,
+        key: str,
+        coerce: Callable[[Any, str, Path], Any],
+        default: Any,
+        required: bool,
+    ) -> Any:
+        if key not in self._raw or self._raw[key] is None:
+            if required:
+                raise ConfigError(
+                    f"{self._path}: {self._label}: missing required key '{key}'"
+                )
+            return default
+        return coerce(self._raw[key], f"{self._label}.{key}", self._path)
+
+    def str_(self, key: str, default: Any = None, *, required: bool = False) -> Any:
+        return self._value(key, _as_str, default, required)
+
+    def int_(self, key: str, default: Any = None) -> Any:
+        return self._value(key, _as_int, default, False)
+
+    def float_(self, key: str, default: Any = None) -> Any:
+        return self._value(key, _as_float, default, False)
+
+    def bool_(self, key: str, default: bool = False) -> bool:
+        return self._value(key, _as_bool, default, False)
+
+    def str_tuple(self, key: str, default: tuple[str, ...] = ()) -> tuple[str, ...]:
+        return self._value(key, _as_str_tuple, default, False)
 
 
 # --------------------------------------------------------------------------- #
@@ -276,88 +301,70 @@ _FLOAT_AUGMENTATION_KEYS = (
 
 
 def _build_experiment(raw: dict[str, Any], path: Path) -> ExperimentSettings:
-    _check_keys(raw, {"name", "description", "type"}, "experiment", path)
+    r = _Reader(raw, "experiment", path)
+    r.check_keys({"name", "description", "type"})
     return ExperimentSettings(
-        name=_get(
-            raw, "name", _as_str, "experiment", path, default=None, required=True
-        ),
-        description=_get(raw, "description", _as_str, "experiment", path, default=""),
-        type=_get(raw, "type", _as_str, "experiment", path, default=""),
+        name=r.str_("name", required=True),
+        description=r.str_("description", ""),
+        type=r.str_("type", ""),
     )
 
 
 def _build_dataset(raw: dict[str, Any], path: Path) -> DatasetSettings:
-    _check_keys(raw, {"data_yaml", "name", "classes"}, "dataset", path)
-    data_yaml = _get(
-        raw, "data_yaml", _as_str, "dataset", path, default=None, required=True
-    )
+    r = _Reader(raw, "dataset", path)
+    r.check_keys({"data_yaml", "name", "classes"})
+    data_yaml = r.str_("data_yaml", required=True)
     if not data_yaml.endswith(".yaml"):
         raise ConfigError(
             f"{path}: dataset.data_yaml: must end with '.yaml', got {data_yaml!r}"
         )
     return DatasetSettings(
         data_yaml=data_yaml,
-        name=_get(raw, "name", _as_str, "dataset", path, default=""),
-        classes=_get(raw, "classes", _as_str_tuple, "dataset", path, default=()),
+        name=r.str_("name", ""),
+        classes=r.str_tuple("classes"),
     )
 
 
 def _build_model(raw: dict[str, Any], path: Path) -> ModelSettings:
-    _check_keys(
-        raw,
-        {"source", "architecture", "initial_weights", "output_weights"},
-        "model",
-        path,
-    )
+    r = _Reader(raw, "model", path)
+    r.check_keys({"source", "architecture", "initial_weights", "output_weights"})
     return ModelSettings(
-        source=_get(raw, "source", _as_str, "model", path, default=None, required=True),
-        architecture=_get(raw, "architecture", _as_str, "model", path, default=""),
-        initial_weights=_get(
-            raw, "initial_weights", _as_str, "model", path, default=None
-        ),
-        output_weights=_get(
-            raw, "output_weights", _as_str, "model", path, default=None
-        ),
+        source=r.str_("source", required=True),
+        architecture=r.str_("architecture", ""),
+        initial_weights=r.str_("initial_weights"),
+        output_weights=r.str_("output_weights"),
     )
 
 
 def _build_training(raw: dict[str, Any], path: Path) -> TrainingSettings:
-    _check_keys(raw, _TRAINING_KEYS, "training", path)
-
-    def num(key: str, coerce: Callable[[Any, str, Path], Any]) -> Any:
-        return _get(raw, key, coerce, "training", path, default=None)
-
-    augmentation = {key: num(key, _as_float) for key in _FLOAT_AUGMENTATION_KEYS}
-
+    r = _Reader(raw, "training", path)
+    r.check_keys(_TRAINING_KEYS)
+    augmentation = {key: r.float_(key) for key in _FLOAT_AUGMENTATION_KEYS}
     return TrainingSettings(
-        epochs=num("epochs", _as_int),
-        additional_epochs=num("additional_epochs", _as_int),
-        device=_get(raw, "device", _as_str, "training", path, default="auto"),
-        image_size=_get(raw, "image_size", _as_int, "training", path, default=416),
-        batch_size=_get(raw, "batch_size", _as_int, "training", path, default=2),
-        workers=_get(raw, "workers", _as_int, "training", path, default=0),
-        amp=_get(raw, "amp", _as_bool, "training", path, default=False),
-        total_effective_epochs=num("total_effective_epochs", _as_int),
-        close_mosaic=num("close_mosaic", _as_int),
-        optimizer=num("optimizer", _as_str),
+        epochs=r.int_("epochs"),
+        additional_epochs=r.int_("additional_epochs"),
+        device=r.str_("device", "auto"),
+        image_size=r.int_("image_size", 416),
+        batch_size=r.int_("batch_size", 2),
+        workers=r.int_("workers", 0),
+        amp=r.bool_("amp"),
+        total_effective_epochs=r.int_("total_effective_epochs"),
+        close_mosaic=r.int_("close_mosaic"),
+        optimizer=r.str_("optimizer"),
         **augmentation,
     )
 
 
 def _build_evaluation(raw: dict[str, Any], path: Path) -> EvaluationSettings:
-    _check_keys(
-        raw,
-        {"split", "image_size", "batch_size", "device", "metrics"},
-        "evaluation",
-        path,
-    )
+    r = _Reader(raw, "evaluation", path)
+    r.check_keys({"split", "image_size", "batch_size", "device", "metrics"})
     metrics = raw.get("metrics")
     if metrics is not None and not isinstance(metrics, dict):
         raise ConfigError(
             f"{path}: evaluation.metrics: expected a mapping, "
             f"got {type(metrics).__name__}"
         )
-    split = _get(raw, "split", _as_str, "evaluation", path, default="test")
+    split = r.str_("split", "test")
     if split not in {"train", "val", "test"}:
         raise ConfigError(
             f"{path}: evaluation.split: must be 'train', 'val', or 'test', "
@@ -365,66 +372,32 @@ def _build_evaluation(raw: dict[str, Any], path: Path) -> EvaluationSettings:
         )
     return EvaluationSettings(
         split=split,
-        image_size=_get(raw, "image_size", _as_int, "evaluation", path, default=None),
-        batch_size=_get(raw, "batch_size", _as_int, "evaluation", path, default=None),
-        device=_get(raw, "device", _as_str, "evaluation", path, default=None),
+        image_size=r.int_("image_size"),
+        batch_size=r.int_("batch_size"),
+        device=r.str_("device"),
         legacy_metrics=metrics,
     )
 
 
 def _build_prediction(raw: dict[str, Any], path: Path) -> PredictionSettings:
-    _check_keys(
-        raw,
-        {"source", "output_dir", "confidence", "recursive"},
-        "prediction",
-        path,
-    )
+    r = _Reader(raw, "prediction", path)
+    r.check_keys({"source", "output_dir", "confidence", "recursive"})
     return PredictionSettings(
-        source=_get(
-            raw,
-            "source",
-            _as_str,
-            "prediction",
-            path,
-            default=None,
-            required=True,
-        ),
-        output_dir=_get(
-            raw,
-            "output_dir",
-            _as_str,
-            "prediction",
-            path,
-            default="outputs/predictions",
-        ),
-        confidence=_get(raw, "confidence", _as_float, "prediction", path, default=0.25),
-        recursive=_get(raw, "recursive", _as_bool, "prediction", path, default=False),
+        source=r.str_("source", required=True),
+        output_dir=r.str_("output_dir", "outputs/predictions"),
+        confidence=r.float_("confidence", 0.25),
+        recursive=r.bool_("recursive"),
     )
 
 
 def _build_outputs(raw: dict[str, Any], path: Path) -> OutputsSettings:
-    _check_keys(
-        raw,
-        {"training_project", "training_name", "evaluation_dir", "exist_ok"},
-        "outputs",
-        path,
-    )
+    r = _Reader(raw, "outputs", path)
+    r.check_keys({"training_project", "training_name", "evaluation_dir", "exist_ok"})
     return OutputsSettings(
-        training_project=_get(
-            raw,
-            "training_project",
-            _as_str,
-            "outputs",
-            path,
-            default="runs/train",
-        ),
-        training_name=_get(
-            raw, "training_name", _as_str, "outputs", path, default=None
-        ),
-        evaluation_dir=_get(
-            raw, "evaluation_dir", _as_str, "outputs", path, default=None
-        ),
-        exist_ok=_get(raw, "exist_ok", _as_bool, "outputs", path, default=True),
+        training_project=r.str_("training_project", "runs/train"),
+        training_name=r.str_("training_name"),
+        evaluation_dir=r.str_("evaluation_dir"),
+        exist_ok=r.bool_("exist_ok", True),
     )
 
 
