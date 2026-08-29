@@ -5,22 +5,11 @@ from __future__ import annotations
 import argparse
 import shutil
 from pathlib import Path
-from typing import Any
 
-import torch
-import yaml
 from ultralytics import YOLO
 
-
-def select_device() -> str:
-    """Select the best available training device."""
-    if torch.cuda.is_available():
-        return "cuda"
-
-    if torch.backends.mps.is_available():
-        return "mps"
-
-    return "cpu"
+from pothole_severity_detection.experiment_config import load_experiment_config
+from pothole_severity_detection.torch_utils import select_device
 
 
 def parse_args() -> argparse.Namespace:
@@ -43,30 +32,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-    """Load a YAML configuration file."""
-    if not config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {config_path}")
-
-    with config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def require_section(config: dict[str, Any], section_name: str) -> dict[str, Any]:
-    """Return a required configuration section."""
-    section = config.get(section_name)
-
-    if not isinstance(section, dict):
-        raise ValueError(f"Missing or invalid configuration section: {section_name}")
-
-    return section
 
 
 def resolve_dataset_path(data_yaml: str) -> Path:
@@ -99,59 +64,6 @@ def resolve_model_source(model_source: str) -> str:
     return model_source
 
 
-def get_training_epochs(training_config: dict[str, Any]) -> int:
-    """Get number of epochs from config.
-
-    Standard configs use `epochs`. Fine-tuning configs may use
-    `additional_epochs`, because the model continues from previous weights.
-    """
-    epochs = training_config.get("epochs", training_config.get("additional_epochs"))
-
-    if epochs is None:
-        raise ValueError("Training config must define `epochs` or `additional_epochs`.")
-
-    return int(epochs)
-
-
-def get_optional_training_overrides(
-    training_config: dict[str, Any],
-) -> dict[str, float | int | str]:
-    """Collect optional Ultralytics training arguments from config."""
-    float_keys = [
-        "scale",
-        "mosaic",
-        "mixup",
-        "copy_paste",
-        "hsv_h",
-        "hsv_s",
-        "hsv_v",
-        "degrees",
-        "translate",
-        "shear",
-        "perspective",
-        "fliplr",
-        "flipud",
-    ]
-    int_keys = ["close_mosaic"]
-    str_keys = ["optimizer"]
-
-    overrides: dict[str, float | int | str] = {}
-
-    for key in float_keys:
-        if key in training_config and training_config[key] is not None:
-            overrides[key] = float(training_config[key])
-
-    for key in int_keys:
-        if key in training_config and training_config[key] is not None:
-            overrides[key] = int(training_config[key])
-
-    for key in str_keys:
-        if key in training_config and training_config[key] is not None:
-            overrides[key] = str(training_config[key])
-
-    return overrides
-
-
 def copy_best_weights(
     training_project: str,
     training_name: str,
@@ -173,41 +85,31 @@ def copy_best_weights(
 def main() -> None:
     """Train YOLOv12 using settings from a YAML config file."""
     args = parse_args()
-    config_path = args.config.resolve()
+    config = load_experiment_config(args.config)
 
-    config = load_yaml_config(config_path)
+    experiment_name = config.experiment.name
+    data_path = resolve_dataset_path(config.dataset.data_yaml)
+    model_source = resolve_model_source(config.model.source)
 
-    experiment_config = require_section(config, "experiment")
-    dataset_config = require_section(config, "dataset")
-    model_config = require_section(config, "model")
-    training_config = require_section(config, "training")
-    outputs_config = config.get("outputs", {})
-
-    experiment_name = str(experiment_config.get("name", config_path.stem))
-    data_path = resolve_dataset_path(str(dataset_config["data_yaml"]))
-    model_source = resolve_model_source(str(model_config["source"]))
-
-    device = str(training_config.get("device", "auto"))
+    device = config.training.device
     if device == "auto":
         device = select_device()
 
-    epochs = get_training_epochs(training_config)
-    image_size = int(training_config.get("image_size", 416))
-    batch_size = int(training_config.get("batch_size", 2))
-    workers = int(training_config.get("workers", 0))
-    amp = bool(training_config.get("amp", False))
+    epochs = config.training.epochs_to_run
+    image_size = config.training.image_size
+    batch_size = config.training.batch_size
+    workers = config.training.workers
+    amp = config.training.amp
+    training_overrides = config.training.augmentation_overrides()
 
-    training_overrides = get_optional_training_overrides(training_config)
-
-    training_project = str(outputs_config.get("training_project", "runs/train"))
-    training_name = str(outputs_config.get("training_name", experiment_name))
-    exist_ok = bool(outputs_config.get("exist_ok", True))
-
-    output_weights = model_config.get("output_weights")
+    training_project = config.outputs.training_project
+    training_name = config.training_name
+    exist_ok = config.outputs.exist_ok
+    output_weights = config.model.output_weights
 
     print("YOLOv12 training configuration")
     print()
-    print(f"Config: {config_path}")
+    print(f"Config: {config.path}")
     print(f"Experiment: {experiment_name}")
     print(f"Dataset YAML: {data_path}")
     print(f"Model source: {model_source}")
