@@ -74,6 +74,40 @@ class TrainingSettings:
     close_mosaic: int | None = None
     optimizer: str | None = None
 
+    @property
+    def epochs_to_run(self) -> int:
+        if self.epochs is not None:
+            return self.epochs
+        if self.additional_epochs is not None:
+            return self.additional_epochs
+        raise ConfigError("training: neither 'epochs' nor 'additional_epochs' is set")
+
+    @property
+    def is_finetuning(self) -> bool:
+        return self.additional_epochs is not None
+
+    def augmentation_overrides(self) -> dict[str, float | int | str]:
+        keys = (
+            "scale",
+            "mosaic",
+            "mixup",
+            "copy_paste",
+            "hsv_h",
+            "hsv_s",
+            "hsv_v",
+            "degrees",
+            "translate",
+            "shear",
+            "perspective",
+            "fliplr",
+            "flipud",
+            "close_mosaic",
+            "optimizer",
+        )
+        return {
+            key: getattr(self, key) for key in keys if getattr(self, key) is not None
+        }
+
 
 @dataclass(frozen=True)
 class EvaluationSettings:
@@ -111,6 +145,10 @@ class ExperimentConfig:
     evaluation: EvaluationSettings | None = None
     prediction: PredictionSettings | None = None
     notes: tuple[str, ...] = ()
+
+    @property
+    def training_name(self) -> str:
+        return self.outputs.training_name or self.experiment.name
 
 
 # --------------------------------------------------------------------------- #
@@ -253,6 +291,10 @@ def _build_dataset(raw: dict[str, Any], path: Path) -> DatasetSettings:
     data_yaml = _get(
         raw, "data_yaml", _as_str, "dataset", path, default=None, required=True
     )
+    if not data_yaml.endswith(".yaml"):
+        raise ConfigError(
+            f"{path}: dataset.data_yaml: must end with '.yaml', got {data_yaml!r}"
+        )
     return DatasetSettings(
         data_yaml=data_yaml,
         name=_get(raw, "name", _as_str, "dataset", path, default=""),
@@ -315,8 +357,14 @@ def _build_evaluation(raw: dict[str, Any], path: Path) -> EvaluationSettings:
             f"{path}: evaluation.metrics: expected a mapping, "
             f"got {type(metrics).__name__}"
         )
+    split = _get(raw, "split", _as_str, "evaluation", path, default="test")
+    if split not in {"train", "val", "test"}:
+        raise ConfigError(
+            f"{path}: evaluation.split: must be 'train', 'val', or 'test', "
+            f"got {split!r}"
+        )
     return EvaluationSettings(
-        split=_get(raw, "split", _as_str, "evaluation", path, default="test"),
+        split=split,
         image_size=_get(raw, "image_size", _as_int, "evaluation", path, default=None),
         batch_size=_get(raw, "batch_size", _as_int, "evaluation", path, default=None),
         device=_get(raw, "device", _as_str, "evaluation", path, default=None),
@@ -397,6 +445,20 @@ _KNOWN_SECTIONS = {
 _REQUIRED_SECTIONS = ("experiment", "dataset", "model", "training")
 
 
+def _validate_training_epochs(training: TrainingSettings, path: Path) -> None:
+    has_epochs = training.epochs is not None
+    has_additional = training.additional_epochs is not None
+    if has_epochs and has_additional:
+        raise ConfigError(
+            f"{path}: training: set only one of 'epochs' or "
+            f"'additional_epochs', not both"
+        )
+    if not has_epochs and not has_additional:
+        raise ConfigError(
+            f"{path}: training: set exactly one of 'epochs' or 'additional_epochs'"
+        )
+
+
 def load_experiment_config(path: str | Path) -> ExperimentConfig:
     """Load, validate, and return an experiment configuration.
 
@@ -454,6 +516,12 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
     if raw.get("notes") is not None:
         notes = _as_str_tuple(raw["notes"], "notes", config_path)
 
+    training = _build_training(
+        _require_mapping(raw["training"], "training", config_path),
+        config_path,
+    )
+    _validate_training_epochs(training, config_path)
+
     return ExperimentConfig(
         path=config_path,
         experiment=_build_experiment(
@@ -467,10 +535,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         model=_build_model(
             _require_mapping(raw["model"], "model", config_path), config_path
         ),
-        training=_build_training(
-            _require_mapping(raw["training"], "training", config_path),
-            config_path,
-        ),
+        training=training,
         outputs=outputs,
         evaluation=evaluation,
         prediction=prediction,
