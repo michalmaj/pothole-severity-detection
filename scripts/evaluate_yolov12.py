@@ -5,22 +5,27 @@ The script supports two workflows:
 1. Manual CLI arguments.
 2. Config-driven evaluation using a YAML experiment configuration.
 
-Evaluation metrics are saved to a local JSON file.
+A provenance-rich result record is written after evaluation: to
+``docs/results/<experiment>.eval.yaml`` in config mode, or to
+``<output-dir>/<run>/result.eval.yaml`` in pure-CLI mode.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from ultralytics import YOLO
 
+from pothole_severity_detection import provenance
 from pothole_severity_detection.experiment_config import (
     ExperimentConfig,
     load_experiment_config,
+)
+from pothole_severity_detection.results import (
+    NOT_RECORDED,
+    extract_box_metrics,
+    write_eval_result,
 )
 from pothole_severity_detection.torch_utils import select_device
 
@@ -90,7 +95,7 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         default=None,
-        help="Directory where evaluation metrics will be saved.",
+        help="Directory where evaluation outputs will be saved.",
     )
 
     parser.add_argument(
@@ -100,16 +105,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def get_metric(source: Any, name: str) -> float | None:
-    """Safely read a numeric metric from an object."""
-    value = getattr(source, name, None)
-
-    if value is None:
-        return None
-
-    return float(value)
 
 
 def resolve_existing_path(path_value: str | Path, label: str) -> Path:
@@ -183,16 +178,18 @@ def get_output_settings(
     return output_dir, run_name
 
 
-def save_metrics(metrics: dict[str, Any], output_path: Path) -> None:
-    """Save metrics dictionary as a JSON file."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with output_path.open("w", encoding="utf-8") as file:
-        json.dump(metrics, file, indent=2)
+def count_split_images(data_path: Path, split: str) -> dict[str, int | str]:
+    """Best-effort count of images in the evaluation split directory."""
+    images_dir = data_path.parent / split / "images"
+    if images_dir.is_dir():
+        images: int | str = sum(1 for item in images_dir.iterdir() if item.is_file())
+    else:
+        images = NOT_RECORDED
+    return {"images": images, "instances": NOT_RECORDED}
 
 
 def main() -> None:
-    """Run YOLOv12 evaluation and save metrics."""
+    """Run YOLOv12 evaluation and write a result record."""
     args = parse_args()
 
     config = load_experiment_config(args.config) if args.config is not None else None
@@ -233,9 +230,15 @@ def main() -> None:
         batch_size = 2
     batch_size = int(batch_size)
 
+    seed = config.training.seed if config is not None else 0
+    deterministic = config.training.deterministic if config is not None else True
+
     output_dir, run_name = get_output_settings(args=args, config=config, split=split)
 
-    output_path = output_dir / run_name / "metrics.json"
+    if config is not None:
+        record_path = Path("docs/results") / f"{config.experiment.name}.eval.yaml"
+    else:
+        record_path = output_dir / run_name / "result.eval.yaml"
 
     print("YOLOv12 evaluation configuration")
     print()
@@ -246,9 +249,10 @@ def main() -> None:
     print(f"Device: {device}")
     print(f"Image size: {image_size}")
     print(f"Batch size: {batch_size}")
+    print(f"Seed: {seed} (deterministic={deterministic})")
     print(f"Output directory: {output_dir}")
     print(f"Run name: {run_name}")
-    print(f"Metrics path: {output_path}")
+    print(f"Result record: {record_path}")
 
     if args.dry_run:
         print()
@@ -264,35 +268,35 @@ def main() -> None:
         batch=batch_size,
         device=device,
         workers=0,
+        seed=seed,
+        deterministic=deterministic,
         project=str(output_dir),
         name=run_name,
         exist_ok=True,
         verbose=True,
     )
 
-    box_metrics = results.box
+    write_eval_result(
+        record_path,
+        experiment=config.experiment.name if config is not None else run_name,
+        config=(
+            provenance.to_repo_relative(config.path)
+            if config is not None
+            else NOT_RECORDED
+        ),
+        dataset=provenance.to_repo_relative(data_path),
+        split=split,
+        model=provenance.to_repo_relative(model_path),
+        device=device,
+        image_size=image_size,
+        batch_size=batch_size,
+        seed=seed,
+        deterministic=deterministic,
+        metrics=extract_box_metrics(results),
+        sample_counts=count_split_images(data_path, split),
+    )
 
-    metrics = {
-        "timestamp_utc": datetime.now(UTC).isoformat(),
-        "config_path": str(config.path) if config is not None else None,
-        "model_path": str(model_path),
-        "data_path": str(data_path),
-        "split": split,
-        "device": device,
-        "image_size": image_size,
-        "batch_size": batch_size,
-        "metrics": {
-            "precision": get_metric(box_metrics, "mp"),
-            "recall": get_metric(box_metrics, "mr"),
-            "map50": get_metric(box_metrics, "map50"),
-            "map75": get_metric(box_metrics, "map75"),
-            "map50_95": get_metric(box_metrics, "map"),
-        },
-    }
-
-    save_metrics(metrics=metrics, output_path=output_path)
-
-    print(f"Metrics saved to: {output_path}")
+    print(f"Result record saved to: {record_path}")
 
 
 if __name__ == "__main__":
