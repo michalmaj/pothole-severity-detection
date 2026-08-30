@@ -177,11 +177,21 @@ def test_training_name_falls_back_to_experiment_name(tmp_path: Path) -> None:
     assert named.training_name == "explicit_name"
 
 
-def test_legacy_metrics_passes_through_untouched(tmp_path: Path) -> None:
-    metrics = {"precision": 0.818, "recall": 0.723}
-    data = MINIMAL | {"evaluation": {"split": "test", "metrics": metrics}}
-    config = load_experiment_config(write_config(tmp_path, data))
-    assert config.evaluation.legacy_metrics == metrics
+def test_seed_and_deterministic(tmp_path: Path) -> None:
+    default = load_experiment_config(write_config(tmp_path, MINIMAL))
+    assert default.training.seed == 0
+    assert default.training.deterministic is True
+
+    data = MINIMAL | {"training": {"epochs": 1, "seed": 7, "deterministic": False}}
+    custom = load_experiment_config(write_config(tmp_path, data))
+    assert custom.training.seed == 7
+    assert custom.training.deterministic is False
+
+
+def test_evaluation_metrics_key_is_rejected(tmp_path: Path) -> None:
+    data = MINIMAL | {"evaluation": {"split": "test", "metrics": {"precision": 0.8}}}
+    with pytest.raises(ConfigError, match="metrics"):
+        load_experiment_config(write_config(tmp_path, data))
 
 
 def test_config_is_immutable(tmp_path: Path) -> None:
