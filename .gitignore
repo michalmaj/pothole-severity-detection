@@ -46,3 +46,6 @@ outputs/
 
 # Logs
 logs/
+
+# decisions
+/decisions
