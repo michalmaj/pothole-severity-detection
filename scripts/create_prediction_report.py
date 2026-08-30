@@ -14,9 +14,10 @@ from statistics import mean
 from typing import Any
 
 import cv2
-import yaml
 from ultralytics import YOLO
 
+from pothole_severity_detection import provenance
+from pothole_severity_detection.experiment_config import load_experiment_config
 from pothole_severity_detection.inference.detector import (
     draw_boxes_with_severity,
     is_image_file,
@@ -67,32 +68,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-    """Load a YAML configuration file."""
-    resolved_config_path = config_path.expanduser().resolve()
-
-    if not resolved_config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {resolved_config_path}")
-
-    with resolved_config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def get_section(config: dict[str, Any], section_name: str) -> dict[str, Any]:
-    """Read a configuration section safely."""
-    section = config.get(section_name, {})
-
-    if not isinstance(section, dict):
-        raise ValueError(f"Invalid configuration section: {section_name}")
-
-    return section
-
-
 def resolve_existing_path(path_value: str | Path, label: str) -> Path:
     """Resolve and validate an existing local path."""
     path = Path(path_value).expanduser().resolve()
@@ -140,7 +115,8 @@ Generated at: {summary["timestamp_utc"]}
 | Field | Value |
 |---|---|
 | Experiment | {summary["experiment_name"]} |
-| Model | `{summary["model_path"]}` |
+| Config | `{summary["config"]}` |
+| Model | `{summary["model"]}` |
 | Source | `{summary["source"]}` |
 | Confidence threshold | {summary["confidence"]} |
 
@@ -169,27 +145,24 @@ def main() -> None:
     """Create prediction report."""
     args = parse_args()
 
-    config_path = args.config.expanduser().resolve()
-    config = load_yaml_config(config_path)
+    config = load_experiment_config(args.config)
 
-    experiment_config = get_section(config, "experiment")
-    model_config = get_section(config, "model")
-    prediction_config = get_section(config, "prediction")
+    experiment_name = config.experiment.name
 
-    experiment_name = str(experiment_config.get("name", config_path.stem))
-
-    model_value = model_config.get("output_weights") or model_config.get("source")
-    if model_value is None:
-        raise ValueError("Config model section must define output_weights or source.")
-
-    source_value = args.source or prediction_config.get("source")
+    model_value = config.model.output_weights or config.model.source
+    source_value = args.source or (
+        config.prediction.source if config.prediction is not None else None
+    )
     if source_value is None:
-        raise ValueError("Prediction source must be provided.")
+        raise ValueError(
+            "Prediction source must be provided via --source or "
+            "config prediction.source."
+        )
 
     confidence = float(
         args.confidence
         if args.confidence is not None
-        else prediction_config.get("confidence", 0.25)
+        else (config.prediction.confidence if config.prediction is not None else 0.25)
     )
 
     model_path = resolve_existing_path(model_value, "Model weights")
@@ -273,10 +246,10 @@ def main() -> None:
 
     summary = {
         "timestamp_utc": datetime.now(UTC).isoformat(),
-        "config_path": str(config_path),
+        "config": provenance.to_repo_relative(config.path),
         "experiment_name": experiment_name,
-        "model_path": str(model_path),
-        "source": str(source),
+        "model": provenance.to_repo_relative(model_path),
+        "source": provenance.to_repo_relative(source),
         "confidence": confidence,
         "summary": {
             "images_processed": total_images,

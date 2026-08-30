@@ -2,6 +2,8 @@
 
 This document summarizes selected local and remote training experiments.
 
+Detailed decision-bearing reports live in [`docs/reports/`](reports/).
+
 ## YOLOv12n local CPU baseline
 
 Date: 2026-04-25  
@@ -157,6 +159,7 @@ This experiment continued training from the previous 100-epoch local CPU baselin
 | mAP50-95 | 0.445 | 0.490 |
 
 **Result record:** [`docs/results/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test.eval.yaml`](results/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test.eval.yaml)
+**Detailed report:** [`docs/reports/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug.md`](reports/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug.md)
 
 ### Notes
 

@@ -22,9 +22,10 @@ from statistics import mean
 from typing import Any
 
 import cv2
-import yaml
 from ultralytics import YOLO
 
+from pothole_severity_detection import provenance
+from pothole_severity_detection.experiment_config import load_experiment_config
 from pothole_severity_detection.inference.detector import is_image_file
 
 Box = tuple[float, float, float, float]
@@ -112,32 +113,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-    """Load a YAML configuration file."""
-    resolved_config_path = config_path.expanduser().resolve()
-
-    if not resolved_config_path.exists():
-        raise FileNotFoundError(f"Configuration file not found: {resolved_config_path}")
-
-    with resolved_config_path.open("r", encoding="utf-8") as file:
-        config = yaml.safe_load(file)
-
-    if not isinstance(config, dict):
-        raise ValueError("Configuration file must contain a YAML mapping.")
-
-    return config
-
-
-def get_section(config: dict[str, Any], section_name: str) -> dict[str, Any]:
-    """Read a configuration section safely."""
-    section = config.get(section_name, {})
-
-    if not isinstance(section, dict):
-        raise ValueError(f"Invalid configuration section: {section_name}")
-
-    return section
 
 
 def resolve_existing_path(path_value: str | Path, label: str) -> Path:
@@ -435,7 +410,8 @@ Generated at: {summary["timestamp_utc"]}
 | Field | Value |
 |---|---|
 | Experiment | {summary["experiment_name"]} |
-| Model | `{summary["model_path"]}` |
+| Config | `{summary["config"]}` |
+| Model | `{summary["model"]}` |
 | Source | `{summary["source"]}` |
 | Confidence threshold | {summary["confidence"]} |
 | IoU threshold | {summary["iou_threshold"]} |
@@ -477,37 +453,38 @@ def main() -> None:
     """Run YOLOv12 error analysis."""
     args = parse_args()
 
-    config_path = args.config.expanduser().resolve()
-    config = load_yaml_config(config_path)
+    config = load_experiment_config(args.config)
 
-    experiment_config = get_section(config, "experiment")
-    model_config = get_section(config, "model")
-    prediction_config = get_section(config, "prediction")
-    training_config = get_section(config, "training")
+    experiment_name = config.experiment.name
 
-    experiment_name = str(experiment_config.get("name", config_path.stem))
-
-    model_value = args.model or model_config.get("output_weights")
+    model_value = args.model or config.model.output_weights
     if model_value is None:
-        raise ValueError("Model weights must be provided in config or via --model.")
+        raise ValueError(
+            "Model weights must be provided via --model or config model.output_weights."
+        )
 
-    source_value = args.source or prediction_config.get("source")
+    source_value = args.source or (
+        config.prediction.source if config.prediction is not None else None
+    )
     if source_value is None:
         raise ValueError(
-            "Prediction source must be provided in config or via --source."
+            "Prediction source must be provided via --source or "
+            "config prediction.source."
         )
 
     confidence = float(
         args.confidence
         if args.confidence is not None
-        else prediction_config.get("confidence", 0.25)
+        else (config.prediction.confidence if config.prediction is not None else 0.25)
     )
 
-    image_size = args.imgsz or training_config.get("image_size")
+    image_size = args.imgsz or config.training.image_size
     image_size = int(image_size) if image_size is not None else None
 
     device = (
-        args.device or prediction_config.get("device") or training_config.get("device")
+        args.device
+        or (config.evaluation.device if config.evaluation is not None else None)
+        or config.training.device
     )
     device = str(device) if device is not None else None
 
@@ -540,7 +517,7 @@ def main() -> None:
     print("YOLOv12 error analysis configuration")
     print()
     print(f"Experiment: {experiment_name}")
-    print(f"Config: {config_path}")
+    print(f"Config: {config.path}")
     print(f"Model: {model_path}")
     print(f"Source: {source}")
     print(f"Output directory: {output_dir}")
@@ -679,10 +656,10 @@ def main() -> None:
 
     summary = {
         "timestamp_utc": datetime.now(UTC).isoformat(),
-        "config_path": str(config_path),
+        "config": provenance.to_repo_relative(config.path),
         "experiment_name": experiment_name,
-        "model_path": str(model_path),
-        "source": str(source),
+        "model": provenance.to_repo_relative(model_path),
+        "source": provenance.to_repo_relative(source),
         "confidence": confidence,
         "iou_threshold": args.iou_threshold,
         "totals": {
