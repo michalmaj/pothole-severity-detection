@@ -50,6 +50,8 @@ Device: CPU
 | mAP75 | 0.312 |
 | mAP50-95 | 0.348 |
 
+**Result record:** [`docs/results/yolov12n_cpu_40e_416_b2_test.eval.yaml`](results/yolov12n_cpu_40e_416_b2_test.eval.yaml)
+
 ### Notes
 
 The model was trained locally on CPU for 40 epochs using `yolov12n.yaml`, image size 416, and batch size 2.
@@ -78,6 +80,8 @@ Device: CPU
 | mAP50 | 0.696 | 0.779 |
 | mAP50-95 | 0.348 | 0.445 |
 
+**Result record:** [`docs/results/yolov12n_cpu_100e_416_b2_test.eval.yaml`](results/yolov12n_cpu_100e_416_b2_test.eval.yaml)
+
 ### Notes
 
 This model was obtained by continuing local CPU training from the previous 40-epoch baseline. The extended training improved both detection confidence and localization quality, especially on mAP50-95.
@@ -101,6 +105,12 @@ Split: test
 | 100e baseline, evaluated at 512 | 512 | 0.767 | 0.730 | 0.762 | 0.428 |
 | 100e + 40e fine-tuning at 512 | 512 | 0.794 | 0.679 | 0.768 | 0.434 |
 | 100e + 40e fine-tuning at 512 | 416 | 0.791 | 0.699 | 0.770 | 0.430 |
+
+**Result records:**
+[`..._100e_416_b2_test`](results/yolov12n_cpu_100e_416_b2_test.eval.yaml) (row 1),
+[`..._100e_416_b2_eval512_test`](results/yolov12n_cpu_100e_416_b2_eval512_test.eval.yaml) (row 2),
+[`..._100e_plus_40e_512_b1_test`](results/yolov12n_cpu_100e_plus_40e_512_b1_test.eval.yaml) (row 3),
+[`..._100e_plus_40e_512_b1_eval416_test`](results/yolov12n_cpu_100e_plus_40e_512_b1_eval416_test.eval.yaml) (row 4)
 
 ### Notes
 
@@ -145,6 +155,8 @@ This experiment continued training from the previous 100-epoch local CPU baselin
 | mAP50 | 0.779 | 0.836 |
 | mAP75 | — | 0.518 |
 | mAP50-95 | 0.445 | 0.490 |
+
+**Result record:** [`docs/results/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test.eval.yaml`](results/yolov12n_cpu_100e_plus_60e_416_b2_gentle_aug_test.eval.yaml)
 
 ### Notes
 
