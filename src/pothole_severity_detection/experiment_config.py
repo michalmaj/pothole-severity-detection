@@ -57,6 +57,8 @@ class TrainingSettings:
     batch_size: int = 2
     workers: int = 0
     amp: bool = False
+    seed: int = 0
+    deterministic: bool = True
     total_effective_epochs: int | None = None
     scale: float | None = None
     mosaic: float | None = None
@@ -115,7 +117,6 @@ class EvaluationSettings:
     image_size: int | None = None
     batch_size: int | None = None
     device: str | None = None
-    legacy_metrics: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -265,6 +266,8 @@ _TRAINING_KEYS = {
     "batch_size",
     "workers",
     "amp",
+    "seed",
+    "deterministic",
     "total_effective_epochs",
     "scale",
     "mosaic",
@@ -348,6 +351,8 @@ def _build_training(raw: dict[str, Any], path: Path) -> TrainingSettings:
         batch_size=r.int_("batch_size", 2),
         workers=r.int_("workers", 0),
         amp=r.bool_("amp"),
+        seed=r.int_("seed", 0),
+        deterministic=r.bool_("deterministic", True),
         total_effective_epochs=r.int_("total_effective_epochs"),
         close_mosaic=r.int_("close_mosaic"),
         optimizer=r.str_("optimizer"),
@@ -357,13 +362,7 @@ def _build_training(raw: dict[str, Any], path: Path) -> TrainingSettings:
 
 def _build_evaluation(raw: dict[str, Any], path: Path) -> EvaluationSettings:
     r = _Reader(raw, "evaluation", path)
-    r.check_keys({"split", "image_size", "batch_size", "device", "metrics"})
-    metrics = raw.get("metrics")
-    if metrics is not None and not isinstance(metrics, dict):
-        raise ConfigError(
-            f"{path}: evaluation.metrics: expected a mapping, "
-            f"got {type(metrics).__name__}"
-        )
+    r.check_keys({"split", "image_size", "batch_size", "device"})
     split = r.str_("split", "test")
     if split not in {"train", "val", "test"}:
         raise ConfigError(
@@ -375,7 +374,6 @@ def _build_evaluation(raw: dict[str, Any], path: Path) -> EvaluationSettings:
         image_size=r.int_("image_size"),
         batch_size=r.int_("batch_size"),
         device=r.str_("device"),
-        legacy_metrics=metrics,
     )
 
 

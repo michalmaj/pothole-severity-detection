@@ -40,6 +40,10 @@ Exactly one must be set under `training`:
   fine-tuning experiments. `total_effective_epochs` may be recorded alongside it
   as documentation; it is not consumed.
 
+`seed` (default `0`) and `deterministic` (default `true`) under `training:` are
+passed straight through to the Ultralytics train/val call and recorded in the
+result record.
+
 ## Augmentation overrides
 
 Optional keys under `training:` — `scale`, `mosaic`, `mixup`, `copy_paste`,
@@ -48,11 +52,12 @@ Optional keys under `training:` — `scale`, `mosaic`, `mixup`, `copy_paste`,
 straight through to the Ultralytics training call; any key left out uses the
 Ultralytics default.
 
-## `evaluation.metrics` (deprecated)
+## `evaluation.metrics` (removed)
 
-Some older configs carry a hand-written `evaluation.metrics` block. It is kept
-only for historical continuity, is not validated, and is being migrated to
-machine-readable summaries under `docs/results/`. Do not add it to new configs.
+Older configs carried a hand-written `evaluation.metrics` block. It has been
+removed. Evaluation results are now committed as machine-readable records under
+`docs/results/`, written by `scripts/evaluate_yolov12.py`. A config that still
+contains `evaluation.metrics` is rejected by the schema.
 
 Generated datasets, weights, logs, runs, reports, and prediction outputs are
 kept local and are not committed to Git.

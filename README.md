@@ -25,6 +25,7 @@ The goal is to demonstrate a practical applied-CV workflow:
 | YOLOv12n, 100e + 60e gentle aug, CPU | test | 0.805 | 0.778 | 0.836 | 0.490 | 
 
 Detailed experiment notes are available in [`docs/experiments.md`](docs/experiments.md).
+Machine-readable result records with full provenance live in [`docs/results/`](docs/results/).
 
 ## Scope and limitations
 
