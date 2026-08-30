@@ -236,20 +236,22 @@ def build_app() -> gr.Blocks:
                     """
                     ## Severity heuristic
 
-                    The dataset contains one detection class: `pothole`.
-                    It does not contain ground-truth severity labels.
+                    The dataset contains one detection class: `pothole`, with no
+                    ground-truth severity labels. Severity is not learned -- it
+                    is estimated after detection from bounding-box geometry:
 
-                    Therefore, severity is not learned by the model. It is
-                    estimated after detection from:
+                    ```
+                    score = 0.6 * (box_area / frame_area)
+                          + 0.4 * (y_center / frame_height)
+                    ```
 
-                    - normalized bounding box area,
-                    - vertical position of the bounding box in the image.
+                    `score < 0.2` is Low, `< 0.4` is Medium, otherwise High. The
+                    weight (0.6) and the thresholds (0.2, 0.4) are chosen
+                    defaults, not calibrated values.
 
-                    The heuristic is intentionally simple and interpretable. It
-                    should be read as a visual prioritization layer, not as a
-                    validated road-damage severity model.
-
-                    Severity colors in the demo:
+                    Read as a visual prioritization layer, not a validated
+                    road-damage severity model. Full derivation and limitations:
+                    `docs/severity-heuristic.md`.
 
                     | Severity | Color |
                     |---|---|

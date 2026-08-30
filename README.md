@@ -59,14 +59,21 @@ Initial class configuration:
 
 ## Severity heuristic
 
-The current severity label is computed after detection. It combines:
+The severity label is a post-processing heuristic, not a learned output. For a
+detected box of area `A_bbox` and vertical centre `y_center` in a `W x H` frame:
 
-- normalized bounding box area,
-- vertical position of the detection in the image.
+```
+score = 0.6 * (A_bbox / (W * H))  +  0.4 * (y_center / H)
+```
 
-This is based on a practical assumption: larger potholes closer to the camera are more relevant for visual prioritization. The heuristic is intentionally simple and interpretable.
+`score < 0.2` is `Low`, `< 0.4` is `Medium`, otherwise `High`. Larger boxes lower
+in the frame -- apparently bigger and closer -- score higher. The weight and the
+thresholds are chosen defaults, not calibrated values.
 
-It is not a substitute for a validated severity model, because the dataset does not contain ground-truth severity labels.
+It is not a substitute for a validated severity model, because the dataset does
+not contain ground-truth severity labels. See
+[`docs/severity-heuristic.md`](docs/severity-heuristic.md) for the derivation,
+assumptions, and limitations.
 
 ## Goals
 
