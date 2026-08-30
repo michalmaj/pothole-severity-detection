@@ -63,8 +63,8 @@ def package_versions() -> dict[str, str]:
 
     return {
         "python": platform.python_version(),
-        "torch": torch.__version__,
-        "ultralytics": ultralytics.__version__,
+        "torch": str(torch.__version__),
+        "ultralytics": str(ultralytics.__version__),
         "ultralytics_commit": ultralytics_commit(),
     }
 
