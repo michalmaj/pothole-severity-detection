@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import time
 from pathlib import Path
 
 from ultralytics import YOLO
 
+from pothole_severity_detection import provenance
 from pothole_severity_detection.experiment_config import load_experiment_config
+from pothole_severity_detection.results import extract_box_metrics, write_train_result
 from pothole_severity_detection.torch_utils import select_device
 
 
@@ -139,7 +142,8 @@ def main() -> None:
 
     model = YOLO(model_source)
 
-    model.train(
+    start = time.monotonic()
+    train_results = model.train(
         data=str(data_path),
         epochs=epochs,
         imgsz=image_size,
@@ -147,11 +151,14 @@ def main() -> None:
         device=device,
         workers=workers,
         amp=amp,
+        seed=config.training.seed,
+        deterministic=config.training.deterministic,
         project=training_project,
         name=training_name,
         exist_ok=exist_ok,
         **training_overrides,
     )
+    duration_seconds = round(time.monotonic() - start, 1)
 
     if output_weights:
         copy_best_weights(
@@ -159,6 +166,35 @@ def main() -> None:
             training_name=training_name,
             destination=output_weights,
         )
+
+    record_path = Path("docs/results") / f"{experiment_name}.train.yaml"
+    write_train_result(
+        record_path,
+        experiment=experiment_name,
+        config=provenance.to_repo_relative(config.path),
+        dataset=provenance.to_repo_relative(data_path),
+        model_source=(
+            provenance.to_repo_relative(model_source)
+            if model_source.endswith(".pt")
+            else model_source
+        ),
+        output_weights=(
+            provenance.to_repo_relative(output_weights)
+            if output_weights
+            else "not recorded"
+        ),
+        device=device,
+        image_size=image_size,
+        batch_size=batch_size,
+        seed=config.training.seed,
+        deterministic=config.training.deterministic,
+        epochs=epochs,
+        is_finetuning=config.training.is_finetuning,
+        augmentation=training_overrides,
+        duration_seconds=duration_seconds,
+        validation_metrics=extract_box_metrics(train_results),
+    )
+    print(f"Result record saved to: {record_path}")
 
 
 if __name__ == "__main__":
