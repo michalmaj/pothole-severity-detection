@@ -9,13 +9,15 @@ from uuid import uuid4
 import cv2
 from ultralytics import YOLO
 
-from pothole_severity_detection.inference.severity import estimate_severity
+from pothole_severity_detection.inference.severity import (
+    SEVERITY_LEVELS,
+    estimate_severity,
+)
 
 Box = tuple[float, float, float, float]
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
-SEVERITY_LEVELS = ("Low", "Medium", "High")
 
 # OpenCV uses BGR color order.
 SEVERITY_COLORS = {
